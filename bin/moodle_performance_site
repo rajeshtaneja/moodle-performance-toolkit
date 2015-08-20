@@ -33,8 +33,10 @@ if (isset($_SERVER['REMOTE_ADDR'])) {
     die(); // No access from web!.
 }
 
+use \moodlehq\performancetoolkit\testplangenerator\generator as testplangenerator;
+use \moodlehq\performancetoolkit\sitegenerator\generator as testdatagenerator;
 // Basic functions.
-require_once(__DIR__ . '/../../../../../lib/clilib.php');
+require_once(__DIR__ . '/../../../../lib/clilib.php');
 
 // CLI options.
 list($options, $unrecognized) = cli_get_params(
@@ -45,12 +47,22 @@ list($options, $unrecognized) = cli_get_params(
         'enable'         => false,
         'disable'        => false,
         'force'          => false,
-        'generate'       => false,
+        'testdata'       => false,
         'backup'         => false,
         'restore'        => false,
+        'testplan'       => false,
+        'proxyurl'       => false,
+        'proxyport'      => false,
     ),
     array(
-        'h' => 'help'
+        'h' => 'help',
+        'i' => 'install',
+        'd' => 'testdata',
+        'b' => 'backup',
+        'r' => 'restore',
+        't' => 'testplan',
+        'u' => 'proxyurl',
+        'p' => 'proxyport',
     )
 );
 
@@ -62,23 +74,28 @@ if ($options['install'] or $options['drop']) {
 $help = "
 This script have generator utilities.
 
-Usage:
-  php generator.php [--install|--drop|--enable|--disable|--force-install|--help] [--generate=SiteSize]
+Usage to create site:
+  vendor/bin/moodle_performance_site [--install|--testdata=SiteSize|--drop|--enable|--disable|--force|--help]
+Usage to create test plan:
+  vendor/bin/moodle_performance_site [--testplan=PlanSize --proxyurl=proxyurl|--proxyport=9090]
 
 Options:
---install        Installs the site for performance test
---generate       Generate site contents. SiteSize can be either one of xs, s, m, l, xl
+--install | -i   Installs the site for performance test
+--testdata | -d  Generate site contents. SiteSize can be either one of xs, s, m, l, xl
 --drop           Drops the database tables and the dataroot contents
 --enable         Enables performance environment and updates tests list
 --disable        Disables test environment
 --force          Ignore existing install if found.
---backup         Backup site
---restore        Restore site
+--backup | -b    Backup site
+--restore | -r   Restore site
+--testplan | -t  Create JMX test plan
+--proxyurl | -u  BrowserMobProxy url should be given with createtestplan.
+--proxyport | -p Port on which BrowserMobProxy should listen. If not passed then it will use random port.
 
 -h, --help Print out this help
 
 Example from Moodle root directory:
-\$ php vendor/bin/generator.php --enable=X
+\$ vendor/bin/moodle_performance_site --install --testdata=s
 
 More info in http://docs.moodle.org/dev/Performance_testing#Running_tests
 ";
@@ -102,13 +119,13 @@ define('CLI_SCRIPT', true);
 define('NO_OUTPUT_BUFFERING', true);
 define('IGNORE_COMPONENT_CACHE', true);
 
-// Autoload files.
+// Autoload files and ensure we load moodle config, as we will be using moodle code for behat context.
 if (file_exists(__DIR__.'/../vendor/autoload.php')) {
     include(__DIR__.'/../vendor/autoload.php');
     require_once(__DIR__ . '../config.php');
-} else if (file_exists(__DIR__ . '/../../../../autoload.php')) {
-    include(__DIR__ . '/../../../../autoload.php');
-    require_once(__DIR__ . '/../../../../../config.php');
+} else if (file_exists(__DIR__ . '/../../../autoload.php')) {
+    include(__DIR__ . '/../../../autoload.php');
+    require_once(__DIR__ . '/../../../../config.php');
 } else {
     die(
         'You must set up the project dependencies, run the following commands:'.PHP_EOL.
@@ -118,10 +135,22 @@ if (file_exists(__DIR__.'/../vendor/autoload.php')) {
 }
 raise_memory_limit(MEMORY_HUGE);
 
-use \moodlehq\performancetoolkit\sitegenerator\generator as generator;
+// Create test plan.
+if ($options['testplan'] || $options['proxyurl'] || $options['proxyport']) {
+    // If either one is empty then throw error.
+    if (($options['testplan'] && $options['proxyurl'])) {
+        $testplan = new testplangenerator();
+        $status = $testplan->create_test_plan($options['testplan'], $options['proxyurl'], $options['proxyport']);
+    } else {
+        echo 'You must pass both createtestplan and proxyurl:'.PHP_EOL;
+        $status = false;
+    }
 
-$sitegenerator = new generator();
-$status = $sitegenerator->run($options);
+} else {
+    // Site install options.
+    $sitedatagenerator = new testdatagenerator();
+    $status = $sitedatagenerator->run($options);
+}
 
 // If invalid action passed, then show help, else exist with the return code.
 if ($status === false) {

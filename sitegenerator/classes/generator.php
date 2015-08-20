@@ -15,7 +15,8 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace moodlehq\performancetoolkit\sitegenerator;
-use \moodlehq\performancetoolkit\sitegenerator\util as performance_util;
+use \moodlehq\performancetoolkit\sitegenerator\util as generator_util;
+use \moodlehq\performancetoolkit\sitegenerator\installer as generator_installer;
 use \Symfony\Component\Process\Process as symfonyprocess;
 
 global $CFG;
@@ -70,10 +71,10 @@ class generator {
      */
     public function run($action) {
         // Check site status and then perform action.
-        $sitestatus = performance_util::get_site_status();
+        $sitestatus = generator_installer::get_site_status();
 
         // If site is not configured then just exit with error.
-        if ($sitestatus == performance_util::PERFORMANCE_EXITCODE_CONFIG) {
+        if ($sitestatus == generator_installer::SITE_ERROR_CONFIG) {
             echo "Error: Ensure you set \$CFG->* vars in config.php " .
                 "and you ran vendor/bin/generate_site --install\n\n";
             return 1;
@@ -83,13 +84,13 @@ class generator {
         if ($action['install']) {
 
             $exitstatus = 0;
-            if ($sitestatus == performance_util::PERFORMANCE_EXITCODE_INSTALLED) {
+            if ($sitestatus == generator_installer::SITE_ERROR_INSTALLED) {
                 echo "Site is already installed\n\n";
 
-            } else if ($sitestatus == performance_util::PERFORMANCE_EXITCODE_INSTALL) {
+            } else if ($sitestatus == generator_installer::SITE_ERROR_INSTALL) {
                 $exitstatus = $this->execute('install');
 
-            } else if ($sitestatus == performance_util::PERFORMANCE_EXITCODE_REINSTALL) {
+            } else if ($sitestatus == generator_installer::SITE_ERROR_REINSTALL) {
                 if (!empty($action['force-install'])) {
                     $this->execute('drop');
                     $exitstatus = $this->execute('install');
@@ -102,15 +103,15 @@ class generator {
                 echo "Error: Invalid site status while installing: " . $sitestatus ."\n\n";
                 $exitstatus = 1;
             }
-            if (empty($exitstatus) && !$action['generate']) {
+            if (empty($exitstatus) && !$action['testdata']) {
                 return $exitstatus;
             }
 
         } else if ($action['drop']) {
 
             $this->execute('disable');
-            if ($sitestatus == performance_util::PERFORMANCE_EXITCODE_INSTALLED ||
-                $sitestatus == performance_util::PERFORMANCE_EXITCODE_REINSTALL || $action['force']) {
+            if ($sitestatus == generator_installer::SITE_ERROR_INSTALLED ||
+                $sitestatus == generator_installer::SITE_ERROR_REINSTALL || $action['force']) {
                 $this->execute('drop');
 
             } else {
@@ -120,8 +121,8 @@ class generator {
 
         } else if ($action['disable']) {
 
-            if ($sitestatus == performance_util::PERFORMANCE_EXITCODE_INSTALLED ||
-                $sitestatus == performance_util::PERFORMANCE_EXITCODE_REINSTALL) {
+            if ($sitestatus == generator_installer::SITE_ERROR_INSTALLED ||
+                $sitestatus == generator_installer::SITE_ERROR_REINSTALL) {
                 $this->execute('disable');
 
             } else {
@@ -132,14 +133,14 @@ class generator {
 
             $sitesize = $this->check_valid_site_size($action['enable']);
 
-            if ($sitestatus == performance_util::PERFORMANCE_EXITCODE_INSTALLED) {
+            if ($sitestatus == generator_installer::SITE_ERROR_INSTALLED) {
                 $this->execute('enable', $sitesize);
             } else {
                 echo "No site installed, so can't enable performance generator." . PHP_EOL;
                 echo "Run \n   - vendor/bin/moodle_performance_site --install" . PHP_EOL;
             }
 
-        }else if ($action['generate']) {
+        }else if ($action['testdata']) {
 
             // This will be handled later, so a valid option by itself.
         } else if ($action['backup']) {
@@ -161,13 +162,13 @@ class generator {
             return false;
         }
 
-        if ($action['generate']) {
-            $sitesize = $this->check_valid_site_size($action['generate']);
+        if ($action['testdata']) {
+            $sitesize = $this->check_valid_site_size($action['testdata']);
 
             // Check site status and then perform action.
-            $sitestatus = performance_util::get_site_status();
+            $sitestatus = generator_installer::get_site_status();
 
-            if ($sitestatus !== performance_util::PERFORMANCE_EXITCODE_INSTALLED) {
+            if ($sitestatus !== generator_installer::SITE_ERROR_INSTALLED) {
                 echo "No site installed, so can't generate performance site data." . PHP_EOL;
                 echo "Run \n   - vendor/bin/moodle_performance_site --install" . PHP_EOL;
                 return 1;
@@ -197,11 +198,11 @@ class generator {
      * Start behat process for generating site contents.
      */
     protected function generate() {
-        $generatorfeaturepath = performance_util::get_performance_generator_dir();
+        $generatorfeaturepath = generator_util::get_tool_dir();
         // Execute each feature file 1 by one to show the proper progress...
-        $generatorconfig = performance_util::get_config();
+        $generatorconfig = generator_util::get_feature_config();
         if (empty($generatorconfig)) {
-            performance_util::performance_exception("Check generator config file.");
+            generator_util::performance_exception("Check generator config file.");
         }
 
         // Create test feature file depending on what is given.
@@ -229,7 +230,8 @@ class generator {
      * @return int status code.
      */
     protected function execute_behat_generator($featurename, $featurepath) {
-        $cmd = "vendor/bin/behat --config " . performance_util::get_performance_generator_dir() . DIRECTORY_SEPARATOR . 'behat.yml ' . $featurepath;
+        $cmd = "vendor/bin/behat --config " . generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . 'behat.yml ' . $featurepath;
+
         $process = new symfonyprocess($cmd);
         $process->setWorkingDirectory(__DIR__ . "/../../../../../");
 
@@ -281,21 +283,21 @@ class generator {
     protected function execute($action, $value = null) {
         switch ($action) {
             case 'install':
-                return performance_util::install_site();
+                return generator_installer::install_site();
             case 'enable':
-                return performance_util::enable_performance_sitemode($value);
+                return generator_installer::enable_performance_sitemode($value);
                 break;
             case 'drop':
-                return performance_util::drop_site();
+                return generator_installer::drop_site();
                 break;
             case 'disable':
-                return performance_util::disable_performance_sitemode();
+                return generator_installer::disable_performance_sitemode();
                 break;
             case 'backup':
-                return performance_util::store_site_state($value);
+                return generator_installer::store_site_state($value);
                 break;
             case 'restore':
-                return performance_util::restore_site_state($value);
+                return generator_installer::restore_site_state($value);
                 break;
         }
     }

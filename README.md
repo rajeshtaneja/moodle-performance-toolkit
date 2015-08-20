@@ -85,7 +85,7 @@ vendor/moodlehq/performance-toolkit/classes
 ```
 
 ### Adding custom feature and steps.
-* Create $CFG->dirroot/generator-config.json
+* Create $CFG->dirroot/sitegenerator.json
 * Add contextpath and featurepath for every generator set.
 ```
 "categories": {
@@ -100,3 +100,8 @@ vendor/moodlehq/performance-toolkit/classes
 ```
 
 # Create JMeter test plan:
+Download latest version of the BrowserMob Proxy & Start it
+```sh
+$ cd browsermob-proxy-xx/bin
+$ ./browsermob-proxy -port 9090
+```

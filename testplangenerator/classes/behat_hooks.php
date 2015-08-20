@@ -41,6 +41,8 @@ use Behat\Behat\Event\SuiteEvent as SuiteEvent,
     WebDriver\Exception\CurlExec as CurlExec,
     WebDriver\Exception\NoAlertOpenError as NoAlertOpenError;
 
+use \moodlehq\performancetoolkit\sitegenerator\installer as performance_site_installer;
+
 /**
  * Hooks to the behat process.
  *
@@ -123,6 +125,13 @@ class behat_hooks extends behat_base {
         if (self::is_first_scenario()) {
             behat_selectors::register_moodle_selectors($session);
             behat_context_helper::set_session($session);
+
+            // Ensure performance site is enable.
+            if (!get_config('core', 'performancesitedata')) {
+                $notperformancesite = "This is not a performance site". PHP_EOL .
+                    " - Run vendor/bin/moodle_performance_site --enable=s" . PHP_EOL;
+                throw new Exception($notperformancesite);
+            }
         }
 
         // Reset mink session between the scenarios.
@@ -139,16 +148,6 @@ class behat_hooks extends behat_base {
         } catch (UnknownError $e) {
             $this->throw_unknown_exception($e);
         }
-
-
-        // Checking that the root path is a Moodle test site.
-        /*if (self::is_first_scenario()) {
-            $notestsiteexception = new Exception('The base URL (' . $CFG->wwwroot . ') is not a behat test site, ' .
-                'ensure you started the built-in web server in the correct directory or your web server is correctly started and set up');
-            $this->find("xpath", "//head/child::title[normalize-space(.)='" . behat_util::BEHATSITENAME . "']", $notestsiteexception);
-
-            self::$initprocessesfinished = true;
-        }*/
     }
 
     /**

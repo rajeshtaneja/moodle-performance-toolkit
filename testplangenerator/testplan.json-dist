@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "scenarios":
+  {
+    "student_view_activity": {
+      "users": {"xs": 1, "s": 10, "m": 100, "l": 10000, "xl": 100000},
+      "rampup": {"xs": 1, "s": 10, "m": 100, "l": 1000, "xl": 10000}
+    }
+  }
+}
+

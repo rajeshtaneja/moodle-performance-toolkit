@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace moodlehq\performancetoolkit\sitegenerator;
-use moodlehq\performancetoolkit\sitegenerator\util as performance_util;
+use moodlehq\performancetoolkit\sitegenerator\util as generator_util;
 
 global $CFG;
 
@@ -42,15 +42,14 @@ defined('MOODLE_INTERNAL') || die();
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class installer extends \behat_util {
-    /**
-     * @var string performance related data will be saved under data dir.
-     */
-    const PERFORMANCE_DATA_DIR = "performance";
 
     /**
-     * @var Keep track of table name used for backup.
+     * @var list of exit codes.
      */
-    protected static $tablename;
+    const SITE_ERROR_CONFIG = "err_config";
+    const SITE_ERROR_INSTALL = "err_install";
+    const SITE_ERROR_INSTALLED = "err_installed";
+    const SITE_ERROR_REINSTALL = "err_reinstall";
 
     /**
      * Install a site using $CFG->dataroot and $CFG->prefix
@@ -66,13 +65,13 @@ class installer extends \behat_util {
         require_once($CFG->dirroot.'/user/lib.php');
 
         if (!defined('PERFORMANCE_SITE_GENERATOR')) {
-            performance_util::performance_exception('This method can be only used by performance site generator.');
+            generator_util::performance_exception('This method can be only used by performance site generator.');
         }
 
         // If already installed, then return with error.
         $tables = $DB->get_tables(false);
         if (!empty($tables)) {
-            return(self::PERFORMANCE_EXITCODE_INSTALLED);
+            return(self::SITE_ERROR_INSTALLED);
         }
 
         $options = array();
@@ -104,8 +103,123 @@ class installer extends \behat_util {
         // Enable web cron.
         set_config('cronclionly', 0);
 
+        $CFG->dboptions =  array ('dbpersist' =>1);
+
         // Keeps the current version of components hash.
         self::store_versions_hash();
+    }
+
+    /**
+     * Enables test mode
+     *
+     * It uses CFG->dataroot/performance
+     *
+     * Starts the test mode checking the composer installation and
+     * the test environment and updating the available
+     * features and steps definitions.
+     *
+     * Stores a file in dataroot/performance to allow Moodle to switch
+     * to the test environment when using cli-server.
+     *
+     * @param string $sitesize size of site
+     * @param string $optionaltestdata (optional), replace default template with this value.
+     * @throws performance_exception
+     * @return int
+     */
+    public static function enable_performance_sitemode($sitesize, $optionaltestdata = '') {
+        global $CFG;
+
+        if (!defined('PERFORMANCE_SITE_GENERATOR')) {
+            self::performance_exception('This method can be only used by performance site generator.');
+        }
+
+        // Checks the behat set up and the PHP version.
+        if ($errorcode = self::check_setup_problem()) {
+            return $errorcode;
+        }
+
+        // Check that test environment is correctly set up.
+        if (self::test_environment_problem() !== self::SITE_ERROR_INSTALLED) {
+            return $errorcode;
+        }
+
+        // Make it a performance site, we have already checked for tables.
+        if (!self::is_performance_site() && empty(get_config('core', 'perfromancesitehash'))) {
+            self::store_versions_hash();
+        }
+
+        generator_util::get_performance_dir(true);
+
+        // Add moodle release and tool hash to performancesite.txt.
+        $release = null;
+        require("$CFG->dirroot/version.php");
+        $contents = "release=".$release.PHP_EOL;
+        if ($hash = generator_util::get_performance_tool_hash()) {
+            $contents .= "hash=" . $hash . PHP_EOL;
+        }
+        // Add tool version to the file. This will help identify the tool version used to generate site.
+        $generatorconfig = generator_util::get_tool_version();
+        $contents .= "generatorversion=" . $generatorconfig . PHP_EOL;
+
+        // Add feature data hash.
+        $featuresethash = md5(serialize($optionaltestdata));
+        $contents .= "featurehash=" . $featuresethash . PHP_EOL;
+
+        // Finally add site size.
+        $contents .= "sitesize=" . $sitesize . PHP_EOL;
+
+        $filepath = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt';
+        if (!file_put_contents($filepath, $contents)) {
+            echo 'File ' . $filepath . ' can not be created' . PHP_EOL;
+            exit(1);
+        }
+
+        generator_util::create_test_feature($sitesize, $optionaltestdata);
+
+        return 0;
+    }
+
+    /**
+     * Disables test mode
+     *
+     * @throws performance_exception
+     * @return bool true on success.
+     */
+    public static function disable_performance_sitemode() {
+
+        if (!defined('PERFORMANCE_SITE_GENERATOR')) {
+            generator_util::performance_exception('This method can be only used by performance site generator.');
+        }
+
+        if (!self::is_performance_site()) {
+            echo "Test environment was already disabled\n";
+        } else {
+            if (file_exists(generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt')) {
+                unlink(generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt');
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Returns the status of the behat test environment
+     *
+     * @return int Error code
+     */
+    public static function get_site_status() {
+
+        if (!defined('PERFORMANCE_SITE_GENERATOR')) {
+            generator_util::performance_exception('This method can be only used by performance site generator.');
+        }
+
+        // Checks the behat set up and the PHP version, returning an error code if something went wrong.
+        if ($errorcode = self::check_setup_problem()) {
+            return $errorcode;
+        }
+
+        // Check that test environment is correctly set up, stops execution.
+        return self::test_environment_problem();
     }
 
     /**
@@ -113,14 +227,14 @@ class installer extends \behat_util {
      */
     public static function store_versions_hash() {
         // Create performace dir., where all hash/data will be backed up.
-        performance_util::get_performance_dir(true);
+        generator_util::get_performance_dir(true);
         $hash = \core_component::get_all_versions_hash();
 
         // Add test db flag.
         set_config('perfromancesitehash', $hash);
 
         // Hash all plugin versions - helps with very fast detection of db structure changes.
-        $hashfile = performance_util::get_performance_generator_dir() . '/versionshash.txt';
+        $hashfile = generator_util::get_tool_dir() . '/versionshash.txt';
         file_put_contents($hashfile, $hash);
         testing_fix_file_permissions($hashfile);
     }
@@ -152,12 +266,12 @@ class installer extends \behat_util {
             }
         }
         $data = serialize($data);
-        $datafile = performance_util::get_performance_generator_dir() . DIRECTORY_SEPARATOR . $statename . '_data.ser';
+        $datafile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '_data.ser';
         file_put_contents($datafile, $data);
         testing_fix_file_permissions($datafile);
 
         $structure = serialize($structure);
-        $structurefile = performance_util::get_performance_generator_dir() . DIRECTORY_SEPARATOR . $statename . '_structure.ser';
+        $structurefile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '_structure.ser';
         file_put_contents($structurefile, $structure);
         testing_fix_file_permissions($structurefile);
     }
@@ -170,7 +284,7 @@ class installer extends \behat_util {
     public static function store_data_root_state($statename = 'default') {
         global $CFG;
 
-        $datafile = performance_util::get_performance_generator_dir() . DIRECTORY_SEPARATOR . $statename . '.zip';
+        $datafile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '.zip';
 
         // Get real path for our folder.
         $rootPath = realpath($CFG->dataroot);
@@ -200,7 +314,7 @@ class installer extends \behat_util {
                 $relativePath = substr($filePath, strlen($rootPath) + 1);
                 if(file_exists($filePath)) {
                     // Add current file to archive.
-                    !$zip->addFile($filePath, $relativePath);
+                    $zip->addFile($filePath, $relativePath);
                 }
             }
         }
@@ -217,7 +331,7 @@ class installer extends \behat_util {
      */
     public static function restore_dataroot($statename) {
 
-        $datafile = performance_util::get_performance_generator_dir() . DIRECTORY_SEPARATOR . $statename . '.zip';
+        $datafile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '.zip';
 
         if (!file_exists($datafile)) {
             return false;
@@ -373,7 +487,7 @@ class installer extends \behat_util {
         // Remove extra tables
         foreach ($tables as $table) {
             if (!isset($data[$table])) {
-                $DB->get_manager()->drop_table(new xmldb_table($table));
+                $DB->get_manager()->drop_table(new \xmldb_table($table));
             }
         }
 
@@ -509,7 +623,7 @@ class installer extends \behat_util {
      */
     protected static function get_table_data($statename) {
 
-        $datafile = performance_util::get_performance_generator_dir() . DIRECTORY_SEPARATOR . $statename . "_data.ser";
+        $datafile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . "_data.ser";
         if (!file_exists($datafile)) {
             // Not initialised yet.
             return array();
@@ -535,7 +649,7 @@ class installer extends \behat_util {
      */
     public static function get_table_structure($statename) {
 
-        $structurefile = performance_util::get_performance_generator_dir() . DIRECTORY_SEPARATOR . $statename . "_structure.ser";
+        $structurefile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . "_structure.ser";
         if (!file_exists($structurefile)) {
             // Not initialised yet.
             return array();
@@ -576,8 +690,10 @@ class installer extends \behat_util {
 
     /**
      * Drop the whole test database
-     * @static
+     *
      * @param bool $displayprogress
+     * @throws moodle_exception
+     * @return bool. true on success.
      */
     public static function drop_database($displayprogress = false) {
         global $DB;
@@ -611,11 +727,14 @@ class installer extends \behat_util {
         if ($displayprogress) {
             echo "\n";
         }
+
+        return true;
     }
 
     /**
      * Drops the test framework dataroot
-     * @static
+     *
+     * @return bool true on success.
      */
     public static function drop_dataroot() {
 
@@ -633,20 +752,207 @@ class installer extends \behat_util {
                 @unlink($path);
             }
         }
+        return true;
     }
 
     /**
      * Drops the performance generator data.
+     *
+     * @return bool true on success.
      */
     public static function drop_generator_data() {
-        $files = scandir(performance_util::get_performance_generator_dir() . '/');
+        $files = scandir(generator_util::get_tool_dir() . '/');
         foreach ($files as $file) {
-            $path = performance_util::get_performance_generator_dir() . '/' . $file;
+            $path = generator_util::get_tool_dir() . '/' . $file;
             if (is_dir($path)) {
                 @remove_dir($path, false);
             } else {
                 @unlink($path);
             }
         }
+        return true;
+    }
+
+    /**
+     * Drops dataroot and remove test database tables
+     * @throws coding_exception
+     * @return bool true on success.
+     */
+    public static function drop_site() {
+
+        if (!defined('PERFORMANCE_SITE_GENERATOR')) {
+            generator_util::performance_exception('This method can be only used by performance site generator.');
+        }
+
+        self::drop_database(true);
+        self::drop_dataroot();
+        self::drop_generator_data();
+
+        return true;
+    }
+
+    /**
+     * Checks if $CFG->wwwroot is available
+     *
+     * @return bool
+     */
+    public static function is_server_running() {
+        global $CFG;
+
+        $request = new \curl();
+        $request->get($CFG->wwwroot);
+
+        if ($request->get_errno() === 0) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Does this site (db and dataroot) appear to be used for production?
+     * We try very hard to prevent accidental damage done to production servers!!
+     *
+     * @static
+     * @return bool
+     */
+    public static function is_performance_site() {
+        global $DB;
+
+        if (!file_exists(generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt')) {
+            // This is already tested in bootstrap script,
+            // but anyway presence of this file means that site is enabled for performance testing.
+            return false;
+        }
+
+        $tables = $DB->get_tables(false);
+        if ($tables) {
+            if (!$DB->get_manager()->table_exists('config')) {
+                return false;
+            }
+            if (!get_config('core', 'perfromancesitehash')) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Returns whether test database and dataroot were created using the current version codebase
+     *
+     * @return bool
+     */
+    public static function is_site_data_updated() {
+
+        $datarootpath = generator_util::get_performance_dir();
+
+        if (!is_dir($datarootpath)) {
+            return 1;
+        }
+
+        if (!file_exists($datarootpath . '/versionshash.txt')) {
+            return 1;
+        }
+
+        $hash = \core_component::get_all_versions_hash();
+        $oldhash = file_get_contents($datarootpath . '/versionshash.txt');
+
+        if ($hash !== $oldhash) {
+            return false;
+        }
+
+        $dbhash = get_config('core', 'perfromancesitehash');
+        if ($hash !== $dbhash) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Checks whether the test database and dataroot is ready
+     * Stops execution if something went wrong
+     * @throws moodle_exception
+     * @return string error code.
+     */
+    protected static function test_environment_problem() {
+        global $DB;
+
+        if (!defined('PERFORMANCE_SITE_GENERATOR')) {
+            generator_util::performance_exception('This method can be only used by performance site generator.');
+        }
+
+        $tables = $DB->get_tables(false);
+        if (empty($tables)) {
+            return self::SITE_ERROR_INSTALL;
+        }
+
+        if (!self::is_site_data_updated()) {
+            return self::SITE_ERROR_REINSTALL;
+        }
+
+        // No error.
+        return self::SITE_ERROR_INSTALLED;
+    }
+
+    /**
+     * Checks if required config vaues are set.
+     *
+     * @return int Error code or 0 if all ok
+     */
+    public static function check_setup_problem() {
+        global $CFG;
+
+        // No empty values.
+        if (empty($CFG->dataroot) || empty($CFG->prefix) || empty($CFG->wwwroot)) {
+            return self::SITE_ERROR_CONFIG;
+        }
+
+        if (empty($CFG->dataroot) || !is_dir($CFG->dataroot) || !is_writable($CFG->dataroot)) {
+            return self::SITE_ERROR_CONFIG;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Save state of current site. Dataroot and database.
+     *
+     * @param string $statename
+     * @return int 0 on success else error code.
+     */
+    public static function store_site_state($statename = "default") {
+        echo "Saving database state" . PHP_EOL;
+        // Save database and dataroot state, before proceeding.
+        self::store_database_state($statename);
+
+        echo "Saving dataroot state" . PHP_EOL;
+        self::store_data_root_state($statename);
+
+        echo "Site state is stored at " . generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename
+            . ".*" . PHP_EOL;
+        return 0;
+    }
+
+    /**
+     * Restore state of current site. Dataroot and database.
+     *
+     * @param string $statename
+     * @return int 0 on success else error code.
+     */
+    public static function restore_site_state($statename = "default") {
+        // Restore database and dataroot state, before proceeding.
+        echo "Restoring database state" . PHP_EOL;
+        if (!self::restore_database_state($statename)) {
+            self::performance_exception("Error restoring state db: " . $statename);
+        }
+
+        echo "Restoring dataroot state" . PHP_EOL;
+        if (!self::restore_dataroot($statename)) {
+            self::performance_exception("Error restoring state data: " . $statename);
+        }
+
+        echo "Site restored to $statename state" . PHP_EOL;
+        return 0;
     }
 }

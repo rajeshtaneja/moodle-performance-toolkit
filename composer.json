@@ -11,12 +11,15 @@
         }
     ],
     "require": {
-        "moodlehq/behat-extension": "1.30.0"
+        "moodlehq/behat-extension": "1.30.0",
+        "rmccue/requests": ">=1.0"
     },
     "autoload": {
         "psr-4": {
-            "moodlehq\\performancetoolkit\\sitegenerator\\": "/sitegenerator/classes"
+            "moodlehq\\performancetoolkit\\": "/classes",
+            "moodlehq\\performancetoolkit\\sitegenerator\\": "/sitegenerator/classes",
+            "moodlehq\\performancetoolkit\\testplangenerator\\": "/testplangenerator/classes"
         }
     },
-    "bin": ["sitegenerator/bin/moodle_performance_site"]
+    "bin": ["bin/moodle_performance_site"]
 }

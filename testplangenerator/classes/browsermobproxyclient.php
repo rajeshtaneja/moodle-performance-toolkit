@@ -1,0 +1,246 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Helper class to interact with BrowserMobProxy.
+ *
+ * @package   moodlehq_performancetoolkit_testplangenerator
+ * @copyright 2015 rajesh Taneja
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+namespace moodlehq\performancetoolkit\testplangenerator;
+use \Requests;
+
+class browsermobproxyclient {
+
+    /** @var string BrowserMobProxy url */
+    private $proxyurl;
+
+    /** @var  string port on which proxy is running. */
+    private $port;
+
+    /**
+     * Class constructor
+     *
+     * @param string $proxyurl proxy URL for BrowserMobProxy.
+     */
+    public function __construct($proxyurl) {
+
+        if (preg_match("/^http(s)?:\/\/.*/i", $proxyurl) == 0) {
+            $proxyurl = "http://" . $proxyurl;
+        }
+
+        $this->proxyurl = $proxyurl;
+    }
+
+    /**
+     * Create new connection to the proxy
+     *
+     * @param string $port speficy port if you want to open proxy at specific port.
+     * @return string the url for proxy.
+     */
+    public function create_connection($port='') {
+
+        $parts = parse_url($this->proxyurl);
+        $hostname = $parts["host"];
+
+        // Create request to open proxy connection.
+        $options = array();
+        $headers = array();
+        if (!empty($port)) {
+            $options = $this->encode_params(array('port' => $port));
+        }
+
+        $response = Requests::post($this->proxyurl . "/proxy/", $headers, $options);
+
+        // Get port on which new proxy connection is created.
+        $decoded = json_decode($response->body, true);
+        if ($decoded) {
+            $this->port = $decoded["port"];
+        }
+
+        // Return url on which the request will be handled.
+        return $parts['scheme'] . "://" . $hostname . ":" . $this->port;
+    }
+
+    /**
+     * Close connection to the proxy
+     *
+     * @return void
+     */
+    public function close_connection() {
+        return Requests::delete($this->proxyurl. "/proxy/" . $this->port);
+    }
+
+    /**
+     * Get har data.
+     *
+     * @return array.
+     */
+    public function get_har() {
+        $proxy_handle = curl_init();
+        $har_url = $this->proxyurl."/proxy/".$this->port."/har";
+        curl_setopt($proxy_handle, CURLOPT_URL, $har_url);
+        curl_setopt($proxy_handle, CURLOPT_RETURNTRANSFER, true);
+        $result = curl_exec($proxy_handle);
+        $decoded = json_decode($result, true);
+        curl_close($proxy_handle);
+        return $decoded;
+    }
+
+    /**
+     * Initialise HAR file, removing any old data.
+     *
+     * @param string $label optional label
+     *
+     * @return string
+     */
+    public function init_har($label = '') {
+        $data = $this->encode_params(
+            array(
+                "initialPageRef" => $label,
+                "captureHeaders" => true,
+                "captureContent" => true,
+                "captureBinaryContent" => true,
+            )
+        );
+
+        $url = $this->proxyurl."/proxy/".$this->port."/har";
+        $response = Requests::put(
+            $url,
+            array(),
+            $data
+        );
+        return $response;
+    }
+
+    /**
+     * Encode an array of arguments
+     *
+     * @param array $params array of arguments to URLencode
+     *
+     * @return bool|string
+     */
+    private function encode_params($params) {
+        if (!is_array($params)) {
+            return false;
+        }
+
+        $c = 0;
+        $payload = array();
+        foreach ($params as $name => $value) {
+            $encodedstring = urlencode($name).'=';
+            if (is_array($value)) {
+                $encodedstring .= urlencode(serialize($value));
+            } else {
+                $encodedstring .= urlencode("$value");
+            }
+            $payload[] = $encodedstring;
+        }
+
+        return implode('&', $payload);
+    }
+
+    /**
+     * Method for returning HAR info about one page
+     *
+     * @param string $label optional label for page
+     *
+     * @return string
+     */
+    public function new_page($label = '') {
+        $data = "pageRef=" . $label;
+        $url = "http://{$this->browsermob_url}/proxy/{$this->port}/har/pageRef";
+        $response = Requests::put(
+            $url,
+            array(),
+            $data
+        );
+        return $response;
+    }
+
+    /**
+     * Add regex pattern to the proxy blacklist
+     *
+     * @param string  $regexp      regular expression
+     * @param integer $status_code HTTP status code
+     *
+     * @return string
+     */
+    public function black_list($regexp, $status_code) {
+        $data = $this->encode_params(
+            array(
+                "regex" => $regexp,
+                "status" => $status_code
+            )
+        );
+        $url = "http://{$this->browsermob_url}/proxy/{$this->port}/blacklist";
+        $response = Requests::put(
+            $url,
+            array(),
+            $data
+        );
+        return $response;
+    }
+
+    /**
+     * Add regex pattern to the proxy whitelist
+     *
+     * @param string  $regexp      regular expression
+     * @param integer $status_code HTTP status code
+     *
+     * @return string
+     */
+    public function white_list($regexp, $status_code) {
+        $data = $this->encode_params(
+            array(
+                "regex" => $regexp,
+                "status" => $status_code
+            )
+        );
+        $url = "http://{$this->browsermob_url}/proxy/{$this->port}/whitelist";
+        $response = Requests::put(
+            $url,
+            array(),
+            $data
+        );
+        return $response;
+    }
+
+    /**
+     * Method for setting how long proxy should wait for traffic to stop
+     *
+     * @param integer $quiet_period time in milliseconds
+     * @param integer $timeout      time in milliseconds
+     *
+     * @return string
+     */
+    public function wait_for_traffic_to_stop($quiet_period, $timeout) {
+        $data = $this->encode_params(
+            array(
+                'quietPeriodInMs' => (string)($quiet_period * 1000),
+                'timeoutInMs' => (string)($timeout * 1000)
+            )
+        );
+        $url = "http://{$this->browsermob_url}/proxy/{$this->port}/wait";
+        $response = Requests::put(
+            $url,
+            array(),
+            $data
+        );
+        return $response;
+    }
+}

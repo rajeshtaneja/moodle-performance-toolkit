@@ -15,8 +15,8 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace moodlehq\performancetoolkit\sitegenerator;
-use \moodlehq\performancetoolkit\sitegenerator\util as generator_util;
-use \moodlehq\performancetoolkit\sitegenerator\installer as generator_installer;
+use \moodlehq\performancetoolkit\sitegenerator\util;
+use \moodlehq\performancetoolkit\sitegenerator\installer;
 use \Symfony\Component\Process\Process as symfonyprocess;
 
 global $CFG;
@@ -49,9 +49,6 @@ class generator {
     /** @var int Keep track of progress start time. */
     protected static $starttime = 0;
 
-    /** @var int Keep track of last progress printed. */
-    protected static $lastdot = 0;
-
     /**
      * @var array list of valid site sizes.
      */
@@ -71,10 +68,10 @@ class generator {
      */
     public function run($action) {
         // Check site status and then perform action.
-        $sitestatus = generator_installer::get_site_status();
+        $sitestatus = installer::get_site_status();
 
         // If site is not configured then just exit with error.
-        if ($sitestatus == generator_installer::SITE_ERROR_CONFIG) {
+        if ($sitestatus == installer::SITE_ERROR_CONFIG) {
             echo "Error: Ensure you set \$CFG->* vars in config.php " .
                 "and you ran vendor/bin/generate_site --install\n\n";
             return 1;
@@ -84,13 +81,13 @@ class generator {
         if ($action['install']) {
 
             $exitstatus = 0;
-            if ($sitestatus == generator_installer::SITE_ERROR_INSTALLED) {
+            if ($sitestatus == installer::SITE_ERROR_INSTALLED) {
                 echo "Site is already installed\n\n";
 
-            } else if ($sitestatus == generator_installer::SITE_ERROR_INSTALL) {
+            } else if ($sitestatus == installer::SITE_ERROR_INSTALL) {
                 $exitstatus = $this->execute('install');
 
-            } else if ($sitestatus == generator_installer::SITE_ERROR_REINSTALL) {
+            } else if ($sitestatus == installer::SITE_ERROR_REINSTALL) {
                 if (!empty($action['force-install'])) {
                     $this->execute('drop');
                     $exitstatus = $this->execute('install');
@@ -110,8 +107,8 @@ class generator {
         } else if ($action['drop']) {
 
             $this->execute('disable');
-            if ($sitestatus == generator_installer::SITE_ERROR_INSTALLED ||
-                $sitestatus == generator_installer::SITE_ERROR_REINSTALL || $action['force']) {
+            if ($sitestatus == installer::SITE_ERROR_INSTALLED ||
+                $sitestatus == installer::SITE_ERROR_REINSTALL || $action['force']) {
                 $this->execute('drop');
 
             } else {
@@ -121,8 +118,8 @@ class generator {
 
         } else if ($action['disable']) {
 
-            if ($sitestatus == generator_installer::SITE_ERROR_INSTALLED ||
-                $sitestatus == generator_installer::SITE_ERROR_REINSTALL) {
+            if ($sitestatus == installer::SITE_ERROR_INSTALLED ||
+                $sitestatus == installer::SITE_ERROR_REINSTALL) {
                 $this->execute('disable');
 
             } else {
@@ -130,17 +127,9 @@ class generator {
             }
 
         } else if ($action['enable']) {
+            // This will be handled later.
 
-            $sitesize = $this->check_valid_site_size($action['enable']);
-
-            if ($sitestatus == generator_installer::SITE_ERROR_INSTALLED) {
-                $this->execute('enable', $sitesize);
-            } else {
-                echo "No site installed, so can't enable performance generator." . PHP_EOL;
-                echo "Run \n   - vendor/bin/moodle_performance_site --install" . PHP_EOL;
-            }
-
-        }else if ($action['testdata']) {
+        } else if ($action['testdata']) {
 
             // This will be handled later, so a valid option by itself.
         } else if ($action['backup']) {
@@ -162,13 +151,26 @@ class generator {
             return false;
         }
 
+        // Check if site needs to be enabled.
+        if ($action['enable']) {
+            $sitesize = $this->check_valid_site_size($action['enable']);
+
+            if ($sitestatus == installer::SITE_ERROR_INSTALLED) {
+                $this->execute('enable', $sitesize);
+            } else {
+                echo "No site installed, so can't enable performance generator." . PHP_EOL;
+                echo "Run \n   - vendor/bin/moodle_performance_site --install" . PHP_EOL;
+            }
+        }
+
+        // Check if site data needs to be generated.
         if ($action['testdata']) {
             $sitesize = $this->check_valid_site_size($action['testdata']);
 
             // Check site status and then perform action.
-            $sitestatus = generator_installer::get_site_status();
+            $sitestatus = installer::get_site_status();
 
-            if ($sitestatus !== generator_installer::SITE_ERROR_INSTALLED) {
+            if ($sitestatus !== installer::SITE_ERROR_INSTALLED) {
                 echo "No site installed, so can't generate performance site data." . PHP_EOL;
                 echo "Run \n   - vendor/bin/moodle_performance_site --install" . PHP_EOL;
                 return 1;
@@ -198,11 +200,11 @@ class generator {
      * Start behat process for generating site contents.
      */
     protected function generate() {
-        $generatorfeaturepath = generator_util::get_tool_dir();
+        $generatorfeaturepath = util::get_tool_dir();
         // Execute each feature file 1 by one to show the proper progress...
-        $generatorconfig = generator_util::get_feature_config();
+        $generatorconfig = util::get_feature_config();
         if (empty($generatorconfig)) {
-            generator_util::performance_exception("Check generator config file.");
+            util::performance_exception("Check generator config file.");
         }
 
         // Create test feature file depending on what is given.
@@ -230,7 +232,7 @@ class generator {
      * @return int status code.
      */
     protected function execute_behat_generator($featurename, $featurepath) {
-        $cmd = "vendor/bin/behat --config " . generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . 'behat.yml ' . $featurepath;
+        $cmd = "vendor/bin/behat --config " . util::get_tool_dir() . DIRECTORY_SEPARATOR . 'behat.yml ' . $featurepath;
 
         $process = new symfonyprocess($cmd);
         $process->setWorkingDirectory(__DIR__ . "/../../../../../");
@@ -283,21 +285,21 @@ class generator {
     protected function execute($action, $value = null) {
         switch ($action) {
             case 'install':
-                return generator_installer::install_site();
+                return installer::install_site();
             case 'enable':
-                return generator_installer::enable_performance_sitemode($value);
+                return installer::enable_performance_sitemode($value);
                 break;
             case 'drop':
-                return generator_installer::drop_site();
+                return installer::drop_site();
                 break;
             case 'disable':
-                return generator_installer::disable_performance_sitemode();
+                return installer::disable_performance_sitemode();
                 break;
             case 'backup':
-                return generator_installer::store_site_state($value);
+                return installer::store_site_state($value);
                 break;
             case 'restore':
-                return generator_installer::restore_site_state($value);
+                return installer::restore_site_state($value);
                 break;
         }
     }
@@ -324,7 +326,6 @@ class generator {
             }
         } else {
             echo ': ';
-            self::$lastdot = time();
             self::$starttime = microtime(true);
         }
         self::$logcounter = 0;
@@ -336,9 +337,6 @@ class generator {
      * @param int $number Number of completed items
      */
     public static function dot($number = 1) {
-        $now = time();
-        self::$lastdot = $now;
-
         if (CLI_SCRIPT) {
             echo str_repeat('*', $number);
         } else {

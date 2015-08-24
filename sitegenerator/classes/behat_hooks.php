@@ -29,17 +29,17 @@
 // With BEHAT_TEST we will be using $CFG->behat_* instead of $CFG->dataroot, $CFG->prefix and $CFG->wwwroot.
 require_once(__DIR__.'/../../../../../lib/behat/behat_base.php');
 
-use Behat\Behat\Event\SuiteEvent as SuiteEvent,
-    Behat\Behat\Event\ScenarioEvent as ScenarioEvent,
-    Behat\Behat\Event\FeatureEvent as FeatureEvent,
-    Behat\Behat\Event\OutlineExampleEvent as OutlineExampleEvent,
-    Behat\Behat\Event\StepEvent as StepEvent,
-    Behat\Mink\Exception\DriverException as DriverException,
-    WebDriver\Exception\NoSuchWindow as NoSuchWindow,
-    WebDriver\Exception\UnexpectedAlertOpen as UnexpectedAlertOpen,
-    WebDriver\Exception\UnknownError as UnknownError,
-    WebDriver\Exception\CurlExec as CurlExec,
-    WebDriver\Exception\NoAlertOpenError as NoAlertOpenError;
+use Behat\Behat\Event\SuiteEvent,
+    Behat\Behat\Event\ScenarioEvent,
+    Behat\Behat\Event\FeatureEvent,
+    Behat\Behat\Event\OutlineExampleEvent,
+    Behat\Behat\Event\StepEvent,
+    Behat\Mink\Exception\DriverException,
+    WebDriver\Exception\NoSuchWindow,
+    WebDriver\Exception\UnexpectedAlertOpen,
+    WebDriver\Exception\UnknownError,
+    WebDriver\Exception\CurlExec,
+    WebDriver\Exception\NoAlertOpenError;
 
 /**
  * Hooks to the behat process.
@@ -73,7 +73,7 @@ class behat_hooks extends behat_base {
      * @param SuiteEvent $event event before suite.
      * @static
      * @throws Exception
-     * @BeforeSuite ~@performance
+     * @BeforeSuite
      */
     public static function before_suite(SuiteEvent $event) {
         global $CFG;
@@ -89,6 +89,8 @@ class behat_hooks extends behat_base {
         require_once($CFG->libdir . '/testing/classes/test_lock.php');
         require_once($CFG->libdir . '/testing/classes/nasty_strings.php');
 
+        // Avoid parallel tests execution, it continues when the previous lock is released.
+        test_lock::acquire('behat');
     }
 
     /**

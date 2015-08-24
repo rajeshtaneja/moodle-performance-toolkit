@@ -28,9 +28,8 @@ global $CFG;
 
 require_once(__DIR__.'/../../../../../lib/tests/behat/behat_data_generators.php');
 
-use Behat\Gherkin\Node\TableNode as TableNode;
-use Behat\Behat\Exception\PendingException as PendingException;
-use moodlehq\performancetoolkit\sitegenerator\generator as moodle_generator;
+use Behat\Gherkin\Node\TableNode;
+use Behat\Behat\Exception\PendingException;
 
 /**
  * Class containing bulk steps for setting up site for performance testing.

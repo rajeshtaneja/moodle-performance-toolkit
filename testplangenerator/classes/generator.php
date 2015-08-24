@@ -16,8 +16,8 @@
 
 namespace moodlehq\performancetoolkit\testplangenerator;
 
-use moodlehq\performancetoolkit\testplangenerator\util as testplan_util;
-use moodlehq\performancetoolkit\testplangenerator\browsermobproxyclient as browsermobproxyclient;
+use moodlehq\performancetoolkit\testplangenerator\util;
+use moodlehq\performancetoolkit\testplangenerator\browsermobproxyclient;
 
 /**
  * Utils for performance-related stuff
@@ -43,18 +43,6 @@ require_once($CFG->libdir . "/behat/classes/behat_command.php");
  */
 class generator {
 
-    /** @var  string proxy url to use. */
-    private $proxyurl;
-
-    /**
-     * Constructor for generating test plan.
-     *
-     * @param string $proxy
-     */
-    public function __constructor($proxy = "localhost:9090") {
-        $this->proxyurl = $proxy;
-    }
-
     /**
      * Create test plan.
      *
@@ -71,9 +59,10 @@ class generator {
 
         // Use the proxy server url now.
         $proxyurl = $browsermobproxy->create_connection($port);
+        echo "Proxy server running at: " . $proxyurl . PHP_EOL;
 
         // Create behat.yml.
-        testplan_util::create_test_feature($size, array(), $proxyurl);
+        util::create_test_feature($size, array(), $proxyurl);
 
         // Check if proxy is working.
 

@@ -24,7 +24,7 @@ This tool comes with following templates, but you can add your own behat feature
 * users - Create users and enrol them as students/teachers/managers/course creators in each course.
 
 ```sh
-vendor/bin/moodle-performance-site --install --generate=s
+vendor/bin/moodle-performance-site --install --testdata=s
 ```
 > If you already have a site installed, then it will generate data depending on template chosen provided --force option is passed.
 
@@ -39,10 +39,10 @@ vendor/bin/moodle-performance-site --restore="StateName"
 ```
 Above commands will backup dataroot directory and database state and will restore the same from the backedup state.
 
-## Define oder in which data is generated (generator-config.json)
-Site data use behat feature and steps to generate data and it's order is defined by generator-config.json-dist
+## Define oder in which data is generated (sitegenerator.json)
+Site data use behat feature and steps to generate data and it's order is defined by sitegenerator.json-dist
 ```
-vendor/moodlehq/performance-toolkit/sitegenerator/generator-config.json-dist
+vendor/moodlehq/performance-toolkit/sitegenerator/sitegenerator.json-dist
 ```
 Order in which fetaures are defined in json file will be respected. You should only pass custom values which are needed with respect to site size. Rest should be handled by feature and custom steps.
 ```

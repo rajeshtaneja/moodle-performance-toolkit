@@ -33,8 +33,6 @@ if (isset($_SERVER['REMOTE_ADDR'])) {
     die(); // No access from web!.
 }
 
-use \moodlehq\performancetoolkit\testplangenerator\generator as testplangenerator;
-use \moodlehq\performancetoolkit\sitegenerator\generator as testdatagenerator;
 // Basic functions.
 require_once(__DIR__ . '/../../../../lib/clilib.php');
 
@@ -139,7 +137,7 @@ raise_memory_limit(MEMORY_HUGE);
 if ($options['testplan'] || $options['proxyurl'] || $options['proxyport']) {
     // If either one is empty then throw error.
     if (($options['testplan'] && $options['proxyurl'])) {
-        $testplan = new testplangenerator();
+        $testplan = new \moodlehq\performancetoolkit\testplangenerator\generator();
         $status = $testplan->create_test_plan($options['testplan'], $options['proxyurl'], $options['proxyport']);
     } else {
         echo 'You must pass both createtestplan and proxyurl:'.PHP_EOL;
@@ -148,7 +146,7 @@ if ($options['testplan'] || $options['proxyurl'] || $options['proxyport']) {
 
 } else {
     // Site install options.
-    $sitedatagenerator = new testdatagenerator();
+    $sitedatagenerator = new \moodlehq\performancetoolkit\sitegenerator\generator();
     $status = $sitedatagenerator->run($options);
 }
 

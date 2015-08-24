@@ -15,11 +15,11 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace moodlehq\performancetoolkit\sitegenerator;
-use moodlehq\performancetoolkit\sitegenerator\util as generator_util;
+use moodlehq\performancetoolkit\sitegenerator\util;
 
 global $CFG;
 
-require_once($CFG->libdir . "/behat/classes/util.php");
+require_once($CFG->libdir . "/testing/classes/util.php");
 require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->libdir . '/installlib.php');
 require_once($CFG->libdir . '/upgradelib.php');
@@ -41,7 +41,7 @@ defined('MOODLE_INTERNAL') || die();
  * @copyright 2015 Rajesh Taneja
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class installer extends \behat_util {
+class installer extends \testing_util {
 
     /**
      * @var list of exit codes.
@@ -65,7 +65,7 @@ class installer extends \behat_util {
         require_once($CFG->dirroot.'/user/lib.php');
 
         if (!defined('PERFORMANCE_SITE_GENERATOR')) {
-            generator_util::performance_exception('This method can be only used by performance site generator.');
+            util::performance_exception('This method can be only used by performance site generator.');
         }
 
         // If already installed, then return with error.
@@ -148,17 +148,17 @@ class installer extends \behat_util {
             self::store_versions_hash();
         }
 
-        generator_util::get_performance_dir(true);
+        util::get_performance_dir(true);
 
         // Add moodle release and tool hash to performancesite.txt.
         $release = null;
         require("$CFG->dirroot/version.php");
         $contents = "release=".$release.PHP_EOL;
-        if ($hash = generator_util::get_performance_tool_hash()) {
+        if ($hash = util::get_performance_tool_hash()) {
             $contents .= "hash=" . $hash . PHP_EOL;
         }
         // Add tool version to the file. This will help identify the tool version used to generate site.
-        $generatorconfig = generator_util::get_tool_version();
+        $generatorconfig = util::get_tool_version();
         $contents .= "generatorversion=" . $generatorconfig . PHP_EOL;
 
         // Add feature data hash.
@@ -168,13 +168,13 @@ class installer extends \behat_util {
         // Finally add site size.
         $contents .= "sitesize=" . $sitesize . PHP_EOL;
 
-        $filepath = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt';
+        $filepath = util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt';
         if (!file_put_contents($filepath, $contents)) {
             echo 'File ' . $filepath . ' can not be created' . PHP_EOL;
             exit(1);
         }
 
-        generator_util::create_test_feature($sitesize, $optionaltestdata);
+        util::create_test_feature($sitesize, $optionaltestdata);
 
         return 0;
     }
@@ -188,14 +188,14 @@ class installer extends \behat_util {
     public static function disable_performance_sitemode() {
 
         if (!defined('PERFORMANCE_SITE_GENERATOR')) {
-            generator_util::performance_exception('This method can be only used by performance site generator.');
+            util::performance_exception('This method can be only used by performance site generator.');
         }
 
         if (!self::is_performance_site()) {
             echo "Test environment was already disabled\n";
         } else {
-            if (file_exists(generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt')) {
-                unlink(generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt');
+            if (file_exists(util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt')) {
+                unlink(util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt');
             }
         }
 
@@ -210,7 +210,7 @@ class installer extends \behat_util {
     public static function get_site_status() {
 
         if (!defined('PERFORMANCE_SITE_GENERATOR')) {
-            generator_util::performance_exception('This method can be only used by performance site generator.');
+            util::performance_exception('This method can be only used by performance site generator.');
         }
 
         // Checks the behat set up and the PHP version, returning an error code if something went wrong.
@@ -227,14 +227,14 @@ class installer extends \behat_util {
      */
     public static function store_versions_hash() {
         // Create performace dir., where all hash/data will be backed up.
-        generator_util::get_performance_dir(true);
+        util::get_performance_dir(true);
         $hash = \core_component::get_all_versions_hash();
 
         // Add test db flag.
         set_config('perfromancesitehash', $hash);
 
         // Hash all plugin versions - helps with very fast detection of db structure changes.
-        $hashfile = generator_util::get_tool_dir() . '/versionshash.txt';
+        $hashfile = util::get_tool_dir() . '/versionshash.txt';
         file_put_contents($hashfile, $hash);
         testing_fix_file_permissions($hashfile);
     }
@@ -266,12 +266,12 @@ class installer extends \behat_util {
             }
         }
         $data = serialize($data);
-        $datafile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '_data.ser';
+        $datafile = util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '_data.ser';
         file_put_contents($datafile, $data);
         testing_fix_file_permissions($datafile);
 
         $structure = serialize($structure);
-        $structurefile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '_structure.ser';
+        $structurefile = util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '_structure.ser';
         file_put_contents($structurefile, $structure);
         testing_fix_file_permissions($structurefile);
     }
@@ -284,7 +284,7 @@ class installer extends \behat_util {
     public static function store_data_root_state($statename = 'default') {
         global $CFG;
 
-        $datafile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '.zip';
+        $datafile = util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '.zip';
 
         // Get real path for our folder.
         $rootPath = realpath($CFG->dataroot);
@@ -331,7 +331,7 @@ class installer extends \behat_util {
      */
     public static function restore_dataroot($statename) {
 
-        $datafile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '.zip';
+        $datafile = util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . '.zip';
 
         if (!file_exists($datafile)) {
             return false;
@@ -623,7 +623,7 @@ class installer extends \behat_util {
      */
     protected static function get_table_data($statename) {
 
-        $datafile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . "_data.ser";
+        $datafile = util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . "_data.ser";
         if (!file_exists($datafile)) {
             // Not initialised yet.
             return array();
@@ -649,7 +649,7 @@ class installer extends \behat_util {
      */
     public static function get_table_structure($statename) {
 
-        $structurefile = generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . "_structure.ser";
+        $structurefile = util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename . "_structure.ser";
         if (!file_exists($structurefile)) {
             // Not initialised yet.
             return array();
@@ -761,9 +761,9 @@ class installer extends \behat_util {
      * @return bool true on success.
      */
     public static function drop_generator_data() {
-        $files = scandir(generator_util::get_tool_dir() . '/');
+        $files = scandir(util::get_tool_dir() . '/');
         foreach ($files as $file) {
-            $path = generator_util::get_tool_dir() . '/' . $file;
+            $path = util::get_tool_dir() . '/' . $file;
             if (is_dir($path)) {
                 @remove_dir($path, false);
             } else {
@@ -781,7 +781,7 @@ class installer extends \behat_util {
     public static function drop_site() {
 
         if (!defined('PERFORMANCE_SITE_GENERATOR')) {
-            generator_util::performance_exception('This method can be only used by performance site generator.');
+            util::performance_exception('This method can be only used by performance site generator.');
         }
 
         self::drop_database(true);
@@ -818,7 +818,7 @@ class installer extends \behat_util {
     public static function is_performance_site() {
         global $DB;
 
-        if (!file_exists(generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt')) {
+        if (!file_exists(util::get_tool_dir() . DIRECTORY_SEPARATOR . 'performancesite.txt')) {
             // This is already tested in bootstrap script,
             // but anyway presence of this file means that site is enabled for performance testing.
             return false;
@@ -844,7 +844,7 @@ class installer extends \behat_util {
      */
     public static function is_site_data_updated() {
 
-        $datarootpath = generator_util::get_performance_dir();
+        $datarootpath = util::get_performance_dir();
 
         if (!is_dir($datarootpath)) {
             return 1;
@@ -879,7 +879,7 @@ class installer extends \behat_util {
         global $DB;
 
         if (!defined('PERFORMANCE_SITE_GENERATOR')) {
-            generator_util::performance_exception('This method can be only used by performance site generator.');
+            util::performance_exception('This method can be only used by performance site generator.');
         }
 
         $tables = $DB->get_tables(false);
@@ -929,7 +929,7 @@ class installer extends \behat_util {
         echo "Saving dataroot state" . PHP_EOL;
         self::store_data_root_state($statename);
 
-        echo "Site state is stored at " . generator_util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename
+        echo "Site state is stored at " . util::get_tool_dir() . DIRECTORY_SEPARATOR . $statename
             . ".*" . PHP_EOL;
         return 0;
     }

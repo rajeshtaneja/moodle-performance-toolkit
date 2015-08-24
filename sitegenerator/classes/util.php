@@ -16,7 +16,7 @@
 
 namespace moodlehq\performancetoolkit\sitegenerator;
 
-use moodlehq\performancetoolkit\toolkit_util as performance_behat_util;
+use moodlehq\performancetoolkit\toolkit_util;
 use Symfony\Component\Yaml\Yaml as symfonyyaml;
 
 /**
@@ -38,7 +38,7 @@ defined('MOODLE_INTERNAL') || die();
  */
 class util {
 
-    use performance_behat_util;
+    use toolkit_util;
     /**
      * Create generator_dir where all feature and context will be saved.
      *

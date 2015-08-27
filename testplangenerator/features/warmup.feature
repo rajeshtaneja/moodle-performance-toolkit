@@ -1,13 +1,13 @@
 @_performance_testplan_generator
-Feature: As a student visit all activities in test course
-  In order visit all activities in test course
+Feature: Warm up site for test plan.
+  In order warm up test site
   As a student
   I need to visit course and it's activities.
 
   @javascript
-  Scenario: Student visit all activities
+  Scenario: Warm up test site
     Given I start capturing http requests
-    And I login as any "student" enrolled in course "TC"
+    And I log in as "s1"
     And I capture "login" http request and ensure "<div class=\"logininfo\">You are logged in as" exists on page
     And I should see "Test course"
     And I follow "Test course"
@@ -37,4 +37,3 @@ Feature: As a student visit all activities in test course
     And I capture "glossaryview" http request and ensure "Test glossary 1" exists on page
     And I follow "TC"
     And I log out
-    And I add listener to threadgroup

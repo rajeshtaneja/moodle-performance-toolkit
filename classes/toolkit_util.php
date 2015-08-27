@@ -19,6 +19,10 @@ namespace moodlehq\performancetoolkit;
 use moodlehq\performancetoolkit\sitegenerator\util;
 use Symfony\Component\Yaml\Yaml as symfonyyaml;
 
+global $CFG;
+
+require_once($CFG->libdir . "/behat/classes/behat_config_manager.php");
+
 /**
  * Utils for performance-related stuff
  *
@@ -135,7 +139,7 @@ trait toolkit_util {
      */
     public static function get_feature_config($featurename = '') {
         $featureconfig = self::get_config();
-        if (empty($scenario)) {
+        if (empty($featurename)) {
             return $featureconfig['scenarios'];
         } else {
             return $featureconfig['scenarios'][$featurename];
@@ -192,6 +196,7 @@ trait toolkit_util {
         if (empty($generatorconfig)) {
             self::performance_exception("Check generator config file.");
         }
+
 
         // Create test feature file depending on what is given.
         foreach ($generatorconfig as $featuretoadd => $config) {
@@ -358,5 +363,31 @@ trait toolkit_util {
         }
 
         return symfonyyaml::dump($config, 10, 2);
+    }
+
+    /**
+     * Delete directory.
+     *
+     * @param string $dir directory path.
+     * @param bool $includingself if true then the directory itself will be removed.
+     * @return bool true on success.
+     */
+    public static function drop_dir($dir, $includingself = false) {
+
+        $files = scandir($dir);
+        foreach ($files as $file) {
+            // Don't delete the dataroot directory. Just contents.
+            if (!$includingself && ($file == "." || $file == "..")) {
+                continue;
+            }
+
+            $path = $dir . '/' . $file;
+            if (is_dir($path)) {
+                @remove_dir($path, false);
+            } else {
+                @unlink($path);
+            }
+        }
+        return true;
     }
 }

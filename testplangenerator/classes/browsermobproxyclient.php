@@ -22,7 +22,9 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 namespace moodlehq\performancetoolkit\testplangenerator;
-use \Requests;
+
+use \Requests,
+    moodlehq\performancetoolkit\testplangenerator\util;
 
 class browsermobproxyclient {
 
@@ -44,6 +46,7 @@ class browsermobproxyclient {
         }
 
         $this->proxyurl = $proxyurl;
+        util::set_option('proxyurl', $proxyurl);
     }
 
     /**
@@ -70,10 +73,11 @@ class browsermobproxyclient {
         $decoded = json_decode($response->body, true);
         if ($decoded) {
             $this->port = $decoded["port"];
+            util::set_option('proxyport', $this->port);
         }
 
         // Return url on which the request will be handled.
-        return $parts['scheme'] . "://" . $hostname . ":" . $this->port;
+        return $hostname . ":" . $this->port;
     }
 
     /**
@@ -86,39 +90,23 @@ class browsermobproxyclient {
     }
 
     /**
-     * Get har data.
-     *
-     * @return array.
-     */
-    public function get_har() {
-        $proxy_handle = curl_init();
-        $har_url = $this->proxyurl."/proxy/".$this->port."/har";
-        curl_setopt($proxy_handle, CURLOPT_URL, $har_url);
-        curl_setopt($proxy_handle, CURLOPT_RETURNTRANSFER, true);
-        $result = curl_exec($proxy_handle);
-        $decoded = json_decode($result, true);
-        curl_close($proxy_handle);
-        return $decoded;
-    }
-
-    /**
-     * Initialise HAR file, removing any old data.
+     * Method for creating a new HAR file
      *
      * @param string $label optional label
      *
      * @return string
      */
-    public function init_har($label = '') {
-        $data = $this->encode_params(
-            array(
-                "initialPageRef" => $label,
-                "captureHeaders" => true,
-                "captureContent" => true,
-                "captureBinaryContent" => true,
-            )
-        );
+    public static function new_har($label = '') {
+        $proxyurl = util::get_option('proxyurl');
+        $proxyport = util::get_option('proxyport');
 
-        $url = $this->proxyurl."/proxy/".$this->port."/har";
+        $data = array(
+                "captureContent" => 'true',
+                "initialPageRef" => $label,
+                "captureHeaders" => 'true',
+                "captureBinaryContent" => 'true',
+                );
+        $url = $proxyurl . "/proxy/" . $proxyport . "/har";
         $response = Requests::put(
             $url,
             array(),
@@ -128,13 +116,25 @@ class browsermobproxyclient {
     }
 
     /**
+     * Initialise HAR file, removing any old data.
+     *
+     * @return string json encoded har data.
+     */
+    public static function get_har($label = '') {
+
+        $result = self::new_har($label);
+
+        return $result->body;
+    }
+
+    /**
      * Encode an array of arguments
      *
      * @param array $params array of arguments to URLencode
      *
      * @return bool|string
      */
-    private function encode_params($params) {
+    private static function encode_params($params) {
         if (!is_array($params)) {
             return false;
         }
@@ -155,24 +155,6 @@ class browsermobproxyclient {
     }
 
     /**
-     * Method for returning HAR info about one page
-     *
-     * @param string $label optional label for page
-     *
-     * @return string
-     */
-    public function new_page($label = '') {
-        $data = "pageRef=" . $label;
-        $url = "http://{$this->browsermob_url}/proxy/{$this->port}/har/pageRef";
-        $response = Requests::put(
-            $url,
-            array(),
-            $data
-        );
-        return $response;
-    }
-
-    /**
      * Add regex pattern to the proxy blacklist
      *
      * @param string  $regexp      regular expression
@@ -180,14 +162,17 @@ class browsermobproxyclient {
      *
      * @return string
      */
-    public function black_list($regexp, $status_code) {
-        $data = $this->encode_params(
+    public static function black_list($regexp, $status_code) {
+        $proxyurl = util::get_option('proxyurl');
+        $proxyport = util::get_option('proxyport');
+
+        $data = self::encode_params(
             array(
                 "regex" => $regexp,
                 "status" => $status_code
             )
         );
-        $url = "http://{$this->browsermob_url}/proxy/{$this->port}/blacklist";
+        $url = $proxyurl . "/proxy/" . $proxyport . "/blacklist";
         $response = Requests::put(
             $url,
             array(),
@@ -204,14 +189,16 @@ class browsermobproxyclient {
      *
      * @return string
      */
-    public function white_list($regexp, $status_code) {
-        $data = $this->encode_params(
+    public static function white_list($regexp, $status_code) {
+        $proxyurl = util::get_option('proxyurl');
+        $proxyport = util::get_option('proxyport');
+        $data = self::encode_params(
             array(
                 "regex" => $regexp,
                 "status" => $status_code
             )
         );
-        $url = "http://{$this->browsermob_url}/proxy/{$this->port}/whitelist";
+        $url = $proxyurl . "/proxy/" . $proxyport . "/whitelist";
         $response = Requests::put(
             $url,
             array(),
@@ -228,14 +215,17 @@ class browsermobproxyclient {
      *
      * @return string
      */
-    public function wait_for_traffic_to_stop($quiet_period, $timeout) {
-        $data = $this->encode_params(
+    public static function wait_for_traffic_to_stop($quiet_period, $timeout) {
+        $proxyurl = util::get_option('proxyurl');
+        $proxyport = util::get_option('proxyport');
+
+        $data = self::encode_params(
             array(
                 'quietPeriodInMs' => (string)($quiet_period * 1000),
                 'timeoutInMs' => (string)($timeout * 1000)
             )
         );
-        $url = "http://{$this->browsermob_url}/proxy/{$this->port}/wait";
+        $url = $proxyurl . "/proxy/" . $proxyport . "/wait";
         $response = Requests::put(
             $url,
             array(),

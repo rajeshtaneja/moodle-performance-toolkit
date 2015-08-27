@@ -1,11 +1,246 @@
 {
-  "version": 1,
-  "scenarios":
-  {
+  "version": "1",
+  "global": {
+    "throughput": {
+      "xs": 50,
+      "s": 100,
+      "m": 120,
+      "l": 150,
+      "xl": 200
+    }
+  },
+  "scenarios": {
+    "warmup": {
+      "execution": {
+        "users": 2,
+        "rampup": 2
+      },
+      "requests": {
+        "login": {
+          "path": "/perf/login/index.php",
+          "method": "POST",
+          "query": {
+            "username": "s1",
+            "password": "s1"
+          }
+        },
+        "courseview": {
+          "path": "/perf/course/view.php",
+          "method": "GET",
+          "query": {
+            "id": "32"
+          }
+        },
+        "assignmentview": {
+          "path": "/perf/mod/assign/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1321"
+          }
+        },
+        "bookview": {
+          "path": "/perf/mod/book/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1325"
+          }
+        },
+        "chatview": {
+          "path": "/perf/mod/chat/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1327"
+          }
+        },
+        "choiceview": {
+          "path": "/perf/mod/choice/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1329"
+          }
+        },
+        "dataview": {
+          "path": "/perf/mod/data/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1331"
+          }
+        },
+        "folderview": {
+          "path": "/perf/mod/folder/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1335"
+          }
+        },
+        "formview": {
+          "path": "/perf/mod/forum/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1337"
+          }
+        },
+        "glossaryview": {
+          "path": "/perf/mod/glossary/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1339"
+          }
+        }
+      }
+    },
     "student_view_activity": {
-      "users": {"xs": 1, "s": 10, "m": 100, "l": 10000, "xl": 100000},
-      "rampup": {"xs": 1, "s": 10, "m": 100, "l": 1000, "xl": 10000}
+      "execution": {
+        "users": {
+          "xs": 1,
+          "s": 20,
+          "m": 1000,
+          "l": 10000,
+          "xl": 100000
+        },
+        "rampup": {
+          "xs": 1,
+          "s": 20,
+          "m": 1000,
+          "l": 10000,
+          "xl": 100000
+        }
+      },
+      "requests": {
+        "login": {
+          "path": "/perf/login/index.php",
+          "method": "POST",
+          "query": {
+            "username": "${student}",
+            "password": "${password}"
+          }
+        },
+        "courseview": {
+          "path": "/perf/mod/book/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1325"
+          }
+        },
+        "assignmentview": {
+          "path": "/perf/mod/assign/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1321"
+          }
+        },
+        "bookview": {
+          "path": "/perf/mod/book/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1325"
+          }
+        },
+        "chatview": {
+          "path": "/perf/mod/chat/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1327"
+          }
+        },
+        "choiceview": {
+          "path": "/perf/mod/choice/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1329"
+          }
+        },
+        "dataview": {
+          "path": "/perf/mod/data/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1331"
+          }
+        },
+        "folderview": {
+          "path": "/perf/mod/folder/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1335"
+          }
+        },
+        "formview": {
+          "path": "/perf/mod/forum/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1337"
+          }
+        },
+        "glossaryview": {
+          "path": "/perf/mod/glossary/view.php",
+          "method": "GET",
+          "query": {
+            "id": "1339"
+          }
+        }
+      }
+    },
+    "forum_post": {
+      "execution": {
+        "users": {
+          "xs": 1,
+          "s": 20,
+          "m": 1000,
+          "l": 10000,
+          "xl": 100000
+        },
+        "rampup": {
+          "xs": 1,
+          "s": 20,
+          "m": 1000,
+          "l": 10000,
+          "xl": 100000
+        }
+      },
+      "requests": {
+        "login": {
+          "path": "/perf/login/index.php",
+          "method": "POST",
+          "query": {
+            "username": "${student}",
+            "password": "${password}"
+          }
+        },
+        "fillDiscussionForm": {
+          "path": "/perf/mod/forum/post.php",
+          "method": "GET",
+          "query": {
+            "forum": "61"
+          }
+        },
+        "addDiscussion": {
+          "path": "/perf/mod/forum/post.php",
+          "method": "POST",
+          "query": {
+            "timestart": "0",
+            "timeend": "0",
+            "course": "32",
+            "forum": "61",
+            "discussion": "0",
+            "parent": "0",
+            "userid": "${studentid}",
+            "groupid": "",
+            "edit": "0",
+            "reply": "0",
+            "sesskey": "${SESSKEY}",
+            "_qf__mod_forum_post_form": "1",
+            "mform_isexpanded_id_general": "1",
+            "subject": "Post with attachment",
+            "message[text]": "This is the discussion by student",
+            "message[format]": "1",
+            "message[itemid]": "${SESSION_FORUMFORMITEMID}",
+            "discussionsubscribe": "1",
+            "attachments": "${SESSION_FORUMFORMATTACHMENTS}",
+            "submitbutton": "Post to forum",
+            "f": "61"
+          }
+        }
+      }
     }
   }
 }
-

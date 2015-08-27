@@ -100,8 +100,24 @@ vendor/moodlehq/performance-toolkit/classes
 ```
 
 # Create JMeter test plan:
-Download latest version of the BrowserMob Proxy & Start it
+  ## Start BrowserMObProxy
+Download latest version of the BrowserMob Proxy & Start it. This is used for capturing http requests and allowing user to select which http request user wants to include in test plan, with which params.
 ```sh
 $ cd browsermob-proxy-xx/bin
 $ ./browsermob-proxy -port 9090
 ```
+## Background
+Testplan is composed of series of http requests. When run by JMeter, sampler parse http response and extract performance
+data (in moodle footer). To execute a test plan we have to define how many users will execute http request and how many times it needs to be executed. This tool provie easy interface to write a feature file and allow user to select http request which they are interested in. Important thing tonote here is: The query params should be hard-coded only if they remain same for each user like courseid. But id's like forum post should be extracted from page on run time and then used. To start creating existing testplan run:
+```
+vendor/bin/moodle_performance_site -t=s --proxyurl=localhost:9090
+```
+If you are creating new plan then you should run behat command requested by the above command.
+
+#### Test plan comprise of number of threads (users) who will login and consecutive requests will be executed as that user for that thread. This can be done by
+   ```
+   Given I login as any "student" enrolled in course "TC"
+   And I capture "login" http requests
+   ```
+   This will create students{featurefilename).csv file and a variable ${student} should be substituted for userid query in http request.
+ ####

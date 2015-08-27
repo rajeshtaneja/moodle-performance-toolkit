@@ -16,8 +16,9 @@
 
 namespace moodlehq\performancetoolkit\testplangenerator;
 
-use moodlehq\performancetoolkit\testplangenerator\util;
-use moodlehq\performancetoolkit\testplangenerator\browsermobproxyclient;
+use moodlehq\performancetoolkit\testplangenerator\util,
+    moodlehq\performancetoolkit\testplangenerator\browsermobproxyclient,
+    Symfony\Component\Process\Process;
 
 /**
  * Utils for performance-related stuff
@@ -31,9 +32,6 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 
-require_once($CFG->libdir . "/behat/classes/util.php");
-require_once($CFG->libdir . "/behat/classes/behat_command.php");
-
 /**
  * Init/reset utilities for Performance test site.
  *
@@ -46,13 +44,19 @@ class generator {
     /**
      * Create test plan.
      *
+     * @param string $size size of the test plan.
      * @param string $proxy proxy url
      * @param string $port (optional) port to be used for proxy server.
+     * @param bool $enable only enable it.
      */
-    public static function create_test_plan($size, $proxy = "localhost:9090", $port = '') {
+    public function create_test_plan($size, $proxy = "localhost:9090", $port = '', $enable = false) {
         global $CFG, $DB;
 
         // Check if site is initialised for performance testing.
+        //TODO:
+
+        // Drop old testplan data dir, ensuring we have fresh data everytime we run the tool.
+        util::drop_dir(util::get_tool_dir(), true);
 
         // Initialise BrowserMobProxy.
         $browsermobproxy = new browsermobproxyclient($proxy);
@@ -64,12 +68,71 @@ class generator {
         // Create behat.yml.
         util::create_test_feature($size, array(), $proxyurl);
 
-        // Check if proxy is working.
+        util::set_option('size', $size);
 
         // Run test plan.
+        if (!$enable) {
+            $cmd = "vendor/bin/behat --config " . util::get_tool_dir() . DIRECTORY_SEPARATOR . 'behat.yml ';
+            echo "Run " . PHP_EOL . '  - ' . $cmd . PHP_EOL . PHP_EOL;
+        } else {
+            $this->run_plan_features();
+        }
 
         // Close BrowserMobProxy connection.
         $browsermobproxy->close_connection();
     }
 
+    public function run_plan_features() {
+        $generatorfeaturepath = util::get_tool_dir();
+        // Execute each feature file 1 by one to show the proper progress...
+        $testplanconfig = util::get_feature_config();
+        if (empty($testplanconfig)) {
+            util::performance_exception("Check generator config file testplan.json");
+        }
+
+        $status = $this->execute_behat_generator();
+        // Don't proceed if it fails.
+        if ($status) {
+            echo "Error: Failed generating test plan" . PHP_EOL.PHP_EOL;
+            $cmd = "vendor/bin/behat --config " . util::get_tool_dir() . DIRECTORY_SEPARATOR . 'behat.yml ';
+            echo "Run " . PHP_EOL . '  - ' . $cmd . PHP_EOL . PHP_EOL;
+            die();
+        } else {
+            echo PHP_EOL."Test plan has been generated under:".PHP_EOL;
+            echo " - ". util::get_final_testplan_path().PHP_EOL;
+        }
+    }
+
+    /**
+     * Execute behat command for featurename and return exit status.
+     *
+     * @return int status code.
+     */
+    protected function execute_behat_generator() {
+        $cmd = "vendor/bin/behat --config " . util::get_tool_dir() . DIRECTORY_SEPARATOR . 'behat.yml ';
+
+        $process = new Process($cmd);
+        $process->setWorkingDirectory(__DIR__ . "/../../../../../");
+
+        $process->setTimeout(null);
+        $process->start();
+        if ($process->getStatus() !== 'started') {
+            echo "Error starting process";
+            $process->signal(SIGKILL);
+            exit(1);
+        }
+
+        while ($process->isRunning()) {
+            $output = $process->getIncrementalOutput();
+            $op = trim($output);
+            if (!empty($op)) {
+                echo $output;
+            }
+        }
+
+        if ($process->getExitCode() !== 0) {
+            echo $process->getErrorOutput();
+        }
+        return $process->getExitCode();
+    }
 }

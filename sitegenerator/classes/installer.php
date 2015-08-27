@@ -342,7 +342,7 @@ class installer extends \testing_util {
         clearstatcache();
 
         // Clean up the dataroot folder.
-        self::drop_dataroot();
+        util::drop_dir(self::get_dataroot() . '/');
 
         $zip = new \ZipArchive;
         if ($zip->open($datafile) === TRUE) {
@@ -732,48 +732,6 @@ class installer extends \testing_util {
     }
 
     /**
-     * Drops the test framework dataroot
-     *
-     * @return bool true on success.
-     */
-    public static function drop_dataroot() {
-
-        $files = scandir(self::get_dataroot() . '/');
-        foreach ($files as $file) {
-            // Don't delete the dataroot directory. Just contents.
-            if ($file == "." || $file == "..") {
-                continue;
-            }
-
-            $path = self::get_dataroot() . '/' . $file;
-            if (is_dir($path)) {
-                @remove_dir($path, false);
-            } else {
-                @unlink($path);
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Drops the performance generator data.
-     *
-     * @return bool true on success.
-     */
-    public static function drop_generator_data() {
-        $files = scandir(util::get_tool_dir() . '/');
-        foreach ($files as $file) {
-            $path = util::get_tool_dir() . '/' . $file;
-            if (is_dir($path)) {
-                @remove_dir($path, false);
-            } else {
-                @unlink($path);
-            }
-        }
-        return true;
-    }
-
-    /**
      * Drops dataroot and remove test database tables
      * @throws coding_exception
      * @return bool true on success.
@@ -785,8 +743,8 @@ class installer extends \testing_util {
         }
 
         self::drop_database(true);
-        self::drop_dataroot();
-        self::drop_generator_data();
+        util::drop_dir(self::get_dataroot() . '/');
+        util::drop_dir(util::get_tool_dir() . '/', true);
 
         return true;
     }

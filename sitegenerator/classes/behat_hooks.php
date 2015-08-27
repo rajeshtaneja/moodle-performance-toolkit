@@ -88,9 +88,6 @@ class behat_hooks extends behat_base {
         require_once($CFG->libdir . '/behat/classes/util.php');
         require_once($CFG->libdir . '/testing/classes/test_lock.php');
         require_once($CFG->libdir . '/testing/classes/nasty_strings.php');
-
-        // Avoid parallel tests execution, it continues when the previous lock is released.
-        test_lock::acquire('behat');
     }
 
     /**

@@ -41,7 +41,9 @@ use Behat\Behat\Event\SuiteEvent as SuiteEvent,
     WebDriver\Exception\CurlExec as CurlExec,
     WebDriver\Exception\NoAlertOpenError as NoAlertOpenError;
 
-use \moodlehq\performancetoolkit\sitegenerator\installer as performance_site_installer;
+use \moodlehq\performancetoolkit\testplangenerator\util,
+    \moodlehq\performancetoolkit\testplangenerator\browsermobproxyclient,
+    \moodlehq\performancetoolkit\testplangenerator\testplan_writer;
 
 /**
  * Hooks to the behat process.
@@ -67,6 +69,16 @@ class behat_hooks extends behat_base {
     protected static $initprocessesfinished = false;
 
     /**
+     * @var Keeps track of which feature file is being executed.
+     */
+    public static $featurefile;
+
+    /**
+     * @var Keeps track of threadgroupname = Feature title
+     */
+    public static $threadgroupname;
+
+    /**
      * Gives access to moodle codebase, ensures all is ready and sets up the test lock.
      *
      * Includes config.php to use moodle codebase with $CFG->behat_*
@@ -75,7 +87,7 @@ class behat_hooks extends behat_base {
      * @param SuiteEvent $event event before suite.
      * @static
      * @throws Exception
-     * @BeforeSuite ~@performance
+     * @BeforeSuite
      */
     public static function before_suite(SuiteEvent $event) {
         global $CFG;
@@ -91,6 +103,45 @@ class behat_hooks extends behat_base {
         require_once($CFG->libdir . '/testing/classes/test_lock.php');
         require_once($CFG->libdir . '/testing/classes/nasty_strings.php');
 
+        // Initialise BrowserMobProxy.
+        $browsermobproxy = new browsermobproxyclient(util::get_option('proxyurl'));
+
+        // Use the proxy server url now.
+        $browsermobproxy->create_connection(util::get_option('proxyport'));
+
+        util::drop_dir(util::get_final_testplan_path());
+
+        // Update global properties in test plan.
+        testplan_writer::start_testplan(util::get_option('size'));
+    }
+
+    /**
+     * After suite event.
+     *
+     * @param SuiteEvent $event
+     * @AfterSuite
+     */
+    public static function after_suite(SuiteEvent $event) {
+        $browsermobproxy = new browsermobproxyclient(util::get_option('proxyurl'));
+        $browsermobproxy->close_connection();
+        echo PHP_EOL."Test plan has been generated under:".PHP_EOL;
+        echo " - ". util::get_final_testplan_path().PHP_EOL;
+    }
+
+    /**
+     * Sets featurefile name, which is used by test plan generator.
+     *
+     * @param FeatureEvent $event event fired before feature.
+     * @throws coding_exception If here we are not using the test database it should be because of a coding error
+     * @BeforeFeature
+     */
+    public static function before_feature(FeatureEvent $event) {
+        self::$featurefile = $event->getFeature()->getFile();
+        preg_match('/^.*\/(\w*)\.feature/i', self::$featurefile, $matches);
+
+        self::$featurefile = $matches[1];
+
+        self::$threadgroupname = $event->getFeature()->getTitle();
     }
 
     /**
@@ -100,13 +151,14 @@ class behat_hooks extends behat_base {
      * @throws coding_exception If here we are not using the test database it should be because of a coding error
      * @BeforeScenario
      */
-    public function before_scenario($event) {
+    public function before_scenario(BeforeScenario $event) {
         global $DB, $CFG;
 
         // TODO: check config value to ensure site is set for performance data.
 
         $moreinfo = 'More info in ' . behat_command::DOCS_URL . '#Running_tests';
         $driverexceptionmsg = 'Selenium server is not running, you need to start it to run tests that involve Javascript. ' . $moreinfo;
+
         try {
             $session = $this->getSession();
         } catch (CurlExec $e) {
@@ -134,20 +186,8 @@ class behat_hooks extends behat_base {
             }
         }
 
-        // Reset mink session between the scenarios.
-        $session->reset();
-
-        // Assign valid data to admin user (some generator-related code needs a valid user).
-        $user = $DB->get_record('user', array('username' => 'admin'));
-        \core\session\manager::set_user($user);
-
-        // Start always in the the homepage.
-        try {
-            // Let's be conservative as we never know when new upstream issues will affect us.
-            $session->visit($this->locate_path('/'));
-        } catch (UnknownError $e) {
-            $this->throw_unknown_exception($e);
-        }
+        // Start a new thread group.
+        testplan_writer::start_thread_group(self::$featurefile, self::$threadgroupname);
     }
 
     /**

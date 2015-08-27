@@ -75,7 +75,7 @@ This script have generator utilities.
 Usage to create site:
   vendor/bin/moodle_performance_site [--install|--testdata=SiteSize|--drop|--enable|--disable|--force|--help]
 Usage to create test plan:
-  vendor/bin/moodle_performance_site [--testplan=PlanSize --proxyurl=proxyurl|--proxyport=9090]
+  vendor/bin/moodle_performance_site [--testplan=PlanSize --proxyurl=proxyurl|--proxyport=9090|--enable]
 
 Options:
 --install | -i   Installs the site for performance test
@@ -86,8 +86,8 @@ Options:
 --force          Ignore existing install if found.
 --backup | -b    Backup site
 --restore | -r   Restore site
---testplan | -t  Create JMX test plan
---proxyurl | -u  BrowserMobProxy url should be given with createtestplan.
+--testplan | -t  Create JMX test plan (xs, s, m, l, xl)
+--proxyurl | -u  BrowserMobProxy url should be given with createtestplan (ex: localhost:9090)
 --proxyport | -p Port on which BrowserMobProxy should listen. If not passed then it will use random port.
 
 -h, --help Print out this help
@@ -134,20 +134,24 @@ if (file_exists(__DIR__.'/../vendor/autoload.php')) {
 raise_memory_limit(MEMORY_HUGE);
 
 // Create test plan.
+if ($options['install'] || $options['testdata'] || $options['drop'] ||
+    $options['enable'] || $options['disable'] || $options['backup'] || $options['restore']) {
+    // Site install options.
+    $sitedatagenerator = new \moodlehq\performancetoolkit\sitegenerator\generator();
+    $status = $sitedatagenerator->run($options);
+}
+
+// Generate site test plan.
 if ($options['testplan'] || $options['proxyurl'] || $options['proxyport']) {
     // If either one is empty then throw error.
     if (($options['testplan'] && $options['proxyurl'])) {
         $testplan = new \moodlehq\performancetoolkit\testplangenerator\generator();
-        $status = $testplan->create_test_plan($options['testplan'], $options['proxyurl'], $options['proxyport']);
+        $status = $testplan->create_test_plan($options['testplan'], $options['proxyurl'], $options['proxyport'], $options['force']);
     } else {
         echo 'You must pass both createtestplan and proxyurl:'.PHP_EOL;
         $status = false;
     }
 
-} else {
-    // Site install options.
-    $sitedatagenerator = new \moodlehq\performancetoolkit\sitegenerator\generator();
-    $status = $sitedatagenerator->run($options);
 }
 
 // If invalid action passed, then show help, else exist with the return code.
